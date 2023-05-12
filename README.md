@@ -6,10 +6,13 @@ but also include other projects that I have worked on
 that don't need their own repo.
 
 the current projects are:
-A calculator,
+
+A calculator
 
 A program to find the cheapest shop out of select data
 
-A unity Mbile game concept (Contains ReadMe),
+A unity Mbile game concept (Contains ReadMe)
 
-A unity Desktop game concept (Contains ReadMe),
+A unity Desktop game concept (Contains ReadMe)
+
+A collection of most of the unity scripts I've ever made
