@@ -15,6 +15,16 @@ A unity Mobile game concept (Contains ReadMe)
 
 A unity Desktop game concept (Contains ReadMe)
 
+A bunch of unity projects 
+- Scientific Witchery: A card based endless side scroller
+- Lofi Dreaming:
+- Cafe Game:
+- Miami Drive: A Flow clone based around Hotline Miami
+- Room Builder: A test for creating isometric rooms
+- Tower Defense
+- Gun Game: An first person endless runner based in space where you have to shoot obstacles to progress
+- When The World Falls Down:
+
 A collection of most of the unity scripts I've ever made
 
-The unity games are too large for github so they're stored here instead: https://drive.google.com/drive/folders/1zRmsxzueBqu4zGQCt15mIPIoEKerFy9c?usp=sharing
+
