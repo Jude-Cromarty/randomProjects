@@ -11,10 +11,6 @@ A calculator
 
 A program to find the cheapest shop out of select data
 
-A unity Mobile game concept (Contains ReadMe)
-
-A unity Desktop game concept (Contains ReadMe)
-
 A bunch of unity projects 
 - Scientific Witchery: A card based endless side scroller (Mobile)
 - Lofi Dreaming: A game about popping bubbles to lofi music (Mobile)
