@@ -7,9 +7,8 @@ that don't need their own repo.
 
 the current projects are:
 
-A calculator
-
-A program to find the cheapest shop out of select data
+A calculator (Java)
+A program to find the cheapest shop out of select data (Java)
 
 A bunch of unity projects 
 - Scientific Witchery: A card based endless side scroller (Mobile)
@@ -21,6 +20,9 @@ A bunch of unity projects
 - Gun Game: An first person endless runner based in space where you have to shoot obstacles to progress (Mobile)
 - When The World Falls Down: hit pigs to make the fall out of the sky (Mobile)
 
-A collection of most of the unity scripts I've ever made
+A collection of most of the unity scripts I've ever used
+
+if need be you can contact me at Judecromarty2@gmail.com
+or on LinkedIn at https://www.linkedin.com/in/jude-cromarty-137668221/
 
 
