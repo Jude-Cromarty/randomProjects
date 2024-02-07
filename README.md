@@ -8,6 +8,7 @@ that don't need their own repo.
 the current projects are:
 
 A calculator (Java)
+
 A program to find the cheapest shop out of select data (Java)
 
 A bunch of unity projects 
