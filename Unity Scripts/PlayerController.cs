@@ -1,111 +1,338 @@
-using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-public class PlayerController : MonoBehaviour
+using UnityEditor;
+using UnityEngine;
+
+namespace HyperCasual.Runner
 {
-    public float moveSpeed = 10f;   // The player's movement speed
-    public float jumpForce = 10f;   // The force applied to the player when jumping
-    public float wallJumpForce = 15f;   // The force applied to the player when wall jumping
-    public float wallSlideSpeed = 2f;   // The speed at which the player slides down a wall
-    public float wallRunSpeed = 15f;   // The speed at which the player runs along a wall
-    public float wallRunDuration = 3f;   // The duration of the wall run
-    public float wallRunCooldown = 5f;   // The cooldown between wall runs
-
-    private bool isGrounded = false;   // True if the player is touching the ground
-    private bool isTouchingWall = false;   // True if the player is touching a wall
-    private bool isWallRunning = false;   // True if the player is currently wall running
-    private bool canWallRun = true;   // True if the player is able to wall run (cooldown has passed)
-
-    private Rigidbody rb;   // The player's rigidbody
-
-    void Start()
+    /// <summary>
+    /// A class used to control a player in a Runner
+    /// game. Includes logic for player movement as well as 
+    /// other gameplay logic.
+    /// </summary>
+    public class PlayerController : MonoBehaviour
     {
-        rb = GetComponent<Rigidbody>();
-    }
+        /// <summary> Returns the PlayerController. </summary>
+        public static PlayerController Instance => s_Instance;
+        static PlayerController s_Instance;
 
-    void Update()
-    {
-        // Get the player's input
-        float xInput = Input.GetAxis("Horizontal");
-        float yInput = Input.GetAxis("Vertical");
+        [SerializeField]
+        Animator m_Animator;
 
-        // Calculate the player's movement vector
-        Vector3 moveDir = new Vector3(xInput, 0, yInput).normalized;
+        [SerializeField]
+        SkinnedMeshRenderer m_SkinnedMeshRenderer;
 
-        // Apply the movement vector
-        rb.velocity = moveDir * moveSpeed + new Vector3(0, rb.velocity.y, 0);
+        [SerializeField]
+        PlayerSpeedPreset m_PlayerSpeed = PlayerSpeedPreset.Medium;
 
-        // Jump if the player is grounded and the jump button is pressed
-        if (isGrounded && Input.GetButtonDown("Jump"))
+        [SerializeField]
+        float m_CustomPlayerSpeed = 10.0f;
+
+        [SerializeField]
+        float m_AccelerationSpeed = 10.0f;
+
+        [SerializeField]
+        float m_DecelerationSpeed = 20.0f;
+
+        [SerializeField]
+        float m_HorizontalSpeedFactor = 0.5f;
+
+        [SerializeField]
+        float m_ScaleVelocity = 2.0f;
+
+        [SerializeField]
+        bool m_AutoMoveForward = true;
+
+        Vector3 m_LastPosition;
+        float m_StartHeight;
+
+        const float k_MinimumScale = 0.1f;
+        static readonly string s_Speed = "Speed";
+
+        enum PlayerSpeedPreset
         {
-            rb.AddForce(new Vector3(0, jumpForce, 0), ForceMode.Impulse);
+            Slow,
+            Medium,
+            Fast,
+            Custom
         }
 
-        // Wall jump if the player is touching a wall and the jump button is pressed
-        if (isTouchingWall && Input.GetButtonDown("Jump"))
-        {
-            rb.AddForce(new Vector3(-Mathf.Sign(xInput) * wallJumpForce, jumpForce, 0), ForceMode.Impulse);
-        }
+        Transform m_Transform;
+        Vector3 m_StartPosition;
+        bool m_HasInput;
+        float m_MaxXPosition;
+        float m_XPos;
+        float m_ZPos;
+        float m_TargetPosition;
+        float m_Speed;
+        float m_TargetSpeed;
+        Vector3 m_Scale;
+        Vector3 m_TargetScale;
+        Vector3 m_DefaultScale;
 
-        // Wall run if the player is touching a wall and the wall run button is pressed and the player is able to wall run
-        if (isTouchingWall && Input.GetButtonDown("WallRun") && canWallRun)
-        {
-            isWallRunning = true;
-            canWallRun = false;
-            StartCoroutine(WallRunTimer());
-        }
+        const float k_HalfWidth = 0.5f;
 
-        // If the player is wall running, apply the wall run speed and adjust the player's y velocity to match the wall slide speed
-        if (isWallRunning)
-        {
-            rb.velocity = new Vector3(Mathf.Sign(xInput) * wallRunSpeed, -wallSlideSpeed, 0);
-        }
-    }
+        /// <summary> The player's root Transform component. </summary>
+        public Transform Transform => m_Transform;
 
-    void OnCollisionEnter(Collision collision)
-    {
-        // Check if the player is touching the ground or a wall
-        foreach (ContactPoint contact in collision.contacts)
+        /// <summary> The player's current speed. </summary>
+        public float Speed => m_Speed;
+
+        /// <summary> The player's target speed. </summary>
+        public float TargetSpeed => m_TargetSpeed;
+
+        /// <summary> The player's minimum possible local scale. </summary>
+        public float MinimumScale => k_MinimumScale;
+
+        /// <summary> The player's current local scale. </summary>
+        public Vector3 Scale => m_Scale;
+
+        /// <summary> The player's target local scale. </summary>
+        public Vector3 TargetScale => m_TargetScale;
+
+        /// <summary> The player's default local scale. </summary>
+        public Vector3 DefaultScale => m_DefaultScale;
+
+        /// <summary> The player's default local height. </summary>
+        public float StartHeight => m_StartHeight;
+
+        /// <summary> The player's default local height. </summary>
+        public float TargetPosition => m_TargetPosition;
+
+        /// <summary> The player's maximum X position. </summary>
+        public float MaxXPosition => m_MaxXPosition;
+
+        void Awake()
         {
-            if (contact.normal.y > 0.5f)
+            if (s_Instance != null && s_Instance != this)
             {
-                isGrounded = true;
+                Destroy(gameObject);
+                return;
             }
-            else if (contact.normal.x != 0 || contact.normal.z != 0)
-            {
-                isTouchingWall = true;
-            }
-        }
-    }
 
-    void OnCollisionExit(Collision collision)
-    {
-        // Check if the player is no longer touching the ground or a wall
-        foreach (ContactPoint contact in collision.contacts)
+            s_Instance = this;
+
+            Initialize();
+        }
+
+        /// <summary>
+        /// Set up all necessary values for the PlayerController.
+        /// </summary>
+        public void Initialize()
         {
-            if (contact.normal.y > 0.5f)
+            m_Transform = transform;
+            m_StartPosition = m_Transform.position;
+            m_DefaultScale = m_Transform.localScale;
+            m_Scale = m_DefaultScale;
+            m_TargetScale = m_Scale;
+
+            if (m_SkinnedMeshRenderer != null)
             {
-                isGrounded = false;
+                m_StartHeight = m_SkinnedMeshRenderer.bounds.size.y;
             }
-            else if (contact.normal.x != 0 || contact.normal.z != 0)
+            else 
             {
-                isTouchingWall = false;
+                m_StartHeight = 1.0f;
             }
+
+            ResetSpeed();
         }
-    }
 
-    IEnumerator WallRunTimer()
-    {
-        // Wait for the wall run duration and then reset the wall run variables
-        yield return new WaitForSeconds(wallRunDuration);
-        isWallRunning = false;
-        StartCoroutine(WallRunCooldownTimer());
-    }
+        /// <summary>
+        /// Returns the current default speed based on the currently
+        /// selected PlayerSpeed preset.
+        /// </summary>
+        public float GetDefaultSpeed()
+        {
+            switch (m_PlayerSpeed)
+            {
+                case PlayerSpeedPreset.Slow:
+                    return 5.0f;
 
-    IEnumerator WallRunCooldownTimer()
-    {
-        // Wait for the wall run cooldown and then enable wall running
-        yield return new WaitForSeconds(wallRunCooldown);
-        canWallRun = true;
+                case PlayerSpeedPreset.Medium:
+                    return 10.0f;
+
+                case PlayerSpeedPreset.Fast:
+                    return 20.0f;
+            }
+
+            return m_CustomPlayerSpeed;
+        }
+
+        /// <summary>
+        /// Adjust the player's current speed
+        /// </summary>
+        public void AdjustSpeed(float speed)
+        {
+            m_TargetSpeed += speed;
+            m_TargetSpeed = Mathf.Max(0.0f, m_TargetSpeed);
+        }
+
+        /// <summary>
+        /// Reset the player's current speed to their default speed
+        /// </summary>
+        public void ResetSpeed()
+        {
+            m_Speed = 0.0f;
+            m_TargetSpeed = GetDefaultSpeed();
+        }
+
+        /// <summary>
+        /// Adjust the player's current scale
+        /// </summary>
+        public void AdjustScale(float scale)
+        {
+            m_TargetScale += Vector3.one * scale;
+            m_TargetScale = Vector3.Max(m_TargetScale, Vector3.one * k_MinimumScale);
+        }
+
+        /// <summary>
+        /// Reset the player's current speed to their default speed
+        /// </summary>
+        public void ResetScale()
+        {
+            m_Scale = m_DefaultScale;
+            m_TargetScale = m_DefaultScale;
+        }
+
+        /// <summary>
+        /// Returns the player's transform component
+        /// </summary>
+        public Vector3 GetPlayerTop()
+        {
+            return m_Transform.position + Vector3.up * (m_StartHeight * m_Scale.y - m_StartHeight);
+        }
+
+        /// <summary>
+        /// Sets the target X position of the player
+        /// </summary>
+        public void SetDeltaPosition(float normalizedDeltaPosition)
+        {
+            if (m_MaxXPosition == 0.0f)
+            {
+                Debug.LogError("Player cannot move because SetMaxXPosition has never been called or Level Width is 0. If you are in the LevelEditor scene, ensure a level has been loaded in the LevelEditor Window!");
+            }
+
+            float fullWidth = m_MaxXPosition * 2.0f;
+            m_TargetPosition = m_TargetPosition + fullWidth * normalizedDeltaPosition;
+            m_TargetPosition = Mathf.Clamp(m_TargetPosition, -m_MaxXPosition, m_MaxXPosition);
+            m_HasInput = true;
+        }
+
+        /// <summary>
+        /// Stops player movement
+        /// </summary>
+        public void CancelMovement()
+        {
+            m_HasInput = false;
+        }
+
+        /// <summary>
+        /// Set the level width to keep the player constrained
+        /// </summary>
+        public void SetMaxXPosition(float levelWidth)
+        {
+            // Level is centered at X = 0, so the maximum player
+            // X position is half of the level width
+            m_MaxXPosition = levelWidth * k_HalfWidth;
+        }
+
+        /// <summary>
+        /// Returns player to their starting position
+        /// </summary>
+        public void ResetPlayer()
+        {
+            m_Transform.position = m_StartPosition;
+            m_XPos = 0.0f;
+            m_ZPos = m_StartPosition.z;
+            m_TargetPosition = 0.0f;
+
+            m_LastPosition = m_Transform.position;
+
+            m_HasInput = false;
+
+            ResetSpeed();
+            ResetScale();
+        }
+
+        void Update()
+        {
+            float deltaTime = Time.deltaTime;
+
+            // Update Scale
+
+            if (!Approximately(m_Transform.localScale, m_TargetScale))
+            {
+                m_Scale = Vector3.Lerp(m_Scale, m_TargetScale, deltaTime * m_ScaleVelocity);
+                m_Transform.localScale = m_Scale;
+            }
+
+            // Update Speed
+
+            if (!m_AutoMoveForward && !m_HasInput)
+            {
+                Decelerate(deltaTime, 0.0f);
+            }
+            else if (m_TargetSpeed < m_Speed)
+            {
+                Decelerate(deltaTime, m_TargetSpeed);
+            }
+            else if (m_TargetSpeed > m_Speed)
+            {
+                Accelerate(deltaTime, m_TargetSpeed);
+            }
+
+            float speed = m_Speed * deltaTime;
+
+            // Update position
+
+            m_ZPos += speed;
+
+            if (m_HasInput)
+            {
+                float horizontalSpeed = speed * m_HorizontalSpeedFactor;
+
+                float newPositionTarget = Mathf.Lerp(m_XPos, m_TargetPosition, horizontalSpeed);
+                float newPositionDifference = newPositionTarget - m_XPos;
+
+                newPositionDifference = Mathf.Clamp(newPositionDifference, -horizontalSpeed, horizontalSpeed);
+
+                m_XPos += newPositionDifference;
+            }
+
+            m_Transform.position = new Vector3(m_XPos, m_Transform.position.y, m_ZPos);
+
+            if (m_Animator != null && deltaTime > 0.0f)
+            {
+                float distanceTravelledSinceLastFrame = (m_Transform.position - m_LastPosition).magnitude;
+                float distancePerSecond = distanceTravelledSinceLastFrame / deltaTime;
+
+                m_Animator.SetFloat(s_Speed, distancePerSecond);
+            }
+
+            if (m_Transform.position != m_LastPosition)
+            {
+                m_Transform.forward = Vector3.Lerp(m_Transform.forward, (m_Transform.position - m_LastPosition).normalized, speed);
+            }
+
+            m_LastPosition = m_Transform.position;
+        }
+
+        void Accelerate(float deltaTime, float targetSpeed)
+        {
+            m_Speed += deltaTime * m_AccelerationSpeed;
+            m_Speed = Mathf.Min(m_Speed, targetSpeed);
+        }
+
+        void Decelerate(float deltaTime, float targetSpeed)
+        {
+            m_Speed -= deltaTime * m_DecelerationSpeed;
+            m_Speed = Mathf.Max(m_Speed, targetSpeed);
+        }
+
+        bool Approximately(Vector3 a, Vector3 b)
+        {
+            return Mathf.Approximately(a.x, b.x) && Mathf.Approximately(a.y, b.y) && Mathf.Approximately(a.z, b.z);
+        }
     }
 }
